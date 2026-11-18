@@ -118,3 +118,44 @@ def compare_to_baseline(
             row["holm_p"] = float(value)
         rows.extend(group)
     return pd.DataFrame(rows)
+
+
+def compare_tail_risk(
+    daily: pd.DataFrame,
+    strategy: str = "lgbm_cvar",
+    baseline: str = "lgbm_scenario_mean",
+    draws: int = 2000,
+    block: int = 7,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Block-bootstrap the mean and 5% CVaR differences between two strategies."""
+    wide = daily.pivot_table(index=["region", "day"], columns="strategy", values="pnl")
+    rng = np.random.default_rng(seed)
+    rows = []
+    for region, table in wide.groupby(level="region"):
+        a, b = table[strategy].to_numpy(), table[baseline].to_numpy()
+        n = len(a)
+        starts = rng.integers(0, n, size=(draws, int(np.ceil(n / block))))
+        indices = ((starts[:, :, None] + np.arange(block)) % n).reshape(draws, -1)[:, :n]
+        cvar_differences = np.array(
+            [
+                tail_metrics(a[i])["cvar_5pct_daily"] - tail_metrics(b[i])["cvar_5pct_daily"]
+                for i in indices
+            ]
+        )
+        mean_differences = (a[indices] - b[indices]).mean(axis=1) * 365
+        rows.append(
+            {
+                "region": region,
+                "strategy": strategy,
+                "baseline": baseline,
+                "annualised_mean_difference": (a - b).mean() * 365,
+                "mean_ci95_low": np.quantile(mean_differences, 0.025),
+                "mean_ci95_high": np.quantile(mean_differences, 0.975),
+                "cvar_5pct_daily_difference": tail_metrics(a)["cvar_5pct_daily"]
+                - tail_metrics(b)["cvar_5pct_daily"],
+                "cvar_ci95_low": np.quantile(cvar_differences, 0.025),
+                "cvar_ci95_high": np.quantile(cvar_differences, 0.975),
+            }
+        )
+    return pd.DataFrame(rows)

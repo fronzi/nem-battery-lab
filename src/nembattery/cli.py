@@ -8,7 +8,13 @@ import typer
 
 from .config import ExperimentConfig, Paths
 from .ingest import build_processed, download_all
-from .pipeline import run_backtests, run_forecasts, summarise, train_final_models
+from .pipeline import (
+    refresh_monitoring,
+    run_backtests,
+    run_forecasts,
+    summarise,
+    train_final_models,
+)
 from .report import build_report
 from .warehouse import materialise
 
@@ -42,6 +48,15 @@ def backtest(root: Path = Path("."), jobs: int = 5) -> None:
     """Optimise and settle every strategy, then write all result tables and figures."""
     paths = _paths(root)
     run_backtests(paths, CONFIG, jobs)
+    summarise(paths, CONFIG)
+    build_report(paths, CONFIG)
+
+
+@app.command()
+def analyse(root: Path = Path("."), jobs: int = 5) -> None:
+    """Rebuild monitoring, tables and figures from existing forecasts and backtests."""
+    paths = _paths(root)
+    refresh_monitoring(paths, CONFIG, jobs)
     summarise(paths, CONFIG)
     build_report(paths, CONFIG)
 

@@ -9,13 +9,27 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from nembattery.api import app
+from nembattery.backtest import backtest_region
 from nembattery.battery import DispatchModel, fixed_schedule, settle
-from nembattery.config import DT_HOURS, BatteryConfig
+from nembattery.config import DT_HOURS, BatteryConfig, ExperimentConfig
 from nembattery.features import FEATURES, build_region_features, price_inverse, price_transform
-from nembattery.forecast import conformal_adjustment, pinball
+from nembattery.forecast import (
+    conformal_adjustment,
+    forecast_metrics,
+    pinball,
+    walk_forward_region,
+)
 from nembattery.ingest import to_half_hourly
-from nembattery.monitoring import population_stability_index
-from nembattery.risk import block_bootstrap_mean, diebold_mariano, holm_adjust, max_drawdown
+from nembattery.monitoring import monthly_coverage, monthly_drift, population_stability_index
+from nembattery.risk import (
+    block_bootstrap_mean,
+    compare_tail_risk,
+    compare_to_baseline,
+    diebold_mariano,
+    holm_adjust,
+    max_drawdown,
+    strategy_metrics,
+)
 from nembattery.warehouse import build_warehouse, integrity_checks
 
 BATTERY = BatteryConfig()
@@ -158,6 +172,18 @@ def test_risk_utilities() -> None:
     assert (statistic, p_value) == (0.0, 1.0)
 
 
+def test_tail_comparison_identical_strategies_is_zero() -> None:
+    days = pd.date_range("2024-01-01", periods=40)
+    pnl = np.arange(40.0)
+    daily = pd.concat(
+        pd.DataFrame({"region": "NSW1", "day": days, "strategy": name, "pnl": pnl})
+        for name in ("lgbm_cvar", "lgbm_scenario_mean")
+    )
+    row = compare_tail_risk(daily, draws=20).iloc[0]
+    assert row["annualised_mean_difference"] == 0
+    assert row["cvar_5pct_daily_difference"] == 0
+
+
 def test_psi_detects_shift_only_when_present() -> None:
     rng = np.random.default_rng(0)
     reference = rng.normal(size=5000)
@@ -174,3 +200,27 @@ def test_api_dispatch_contract() -> None:
     assert response.json()["expected_pnl_aud"] > 0
     assert client.post("/dispatch", json={"prices": [1.0]}).status_code == 422
     assert client.get("/forecast/XXX").status_code == 404
+
+
+def test_end_to_end_walk_forward_and_backtest_on_synthetic_market() -> None:
+    config = ExperimentConfig(
+        test_start="2024-04-01", calibration_days=20, lgbm_estimators=5, scenarios=4
+    )
+    features = build_region_features(panel(105), "NSW1")
+    predictions, residuals = walk_forward_region(features, config)
+    assert predictions["day"].min() == pd.Timestamp("2024-04-01")
+    assert (predictions[["q05", "q50", "q95"]].diff(axis=1).iloc[:, 1:] >= -1e-6).all().all()
+    point, coverage = forecast_metrics(predictions, config.quantiles)
+    assert set(point["model"]) >= {"naive_d1", "q50"}
+    assert coverage["coverage"].between(0, 1).all()
+    assert monthly_coverage(predictions)["conformal_80_coverage"].between(0, 1).all()
+    assert not monthly_drift(features, "2024-04-01").empty or features["day"].min().year == 2024
+
+    short = predictions.loc[predictions["day"].le("2024-04-03")]
+    daily = backtest_region(short, residuals, config)
+    assert daily["strategy"].nunique() == 9
+    metrics = strategy_metrics(daily)
+    foresight = metrics.loc[metrics["strategy"].eq("perfect_foresight")]
+    assert foresight["capture_of_perfect_foresight"].iloc[0] == pytest.approx(1)
+    assert metrics["capture_of_perfect_foresight"].max() <= 1 + 1e-6
+    assert not compare_to_baseline(daily).empty

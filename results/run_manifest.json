@@ -1,0 +1,41 @@
+{
+  "config": {
+    "first_month": "2022-01",
+    "last_month": "2026-10",
+    "test_start": "2024-01-01",
+    "calibration_days": 90,
+    "quantiles": [
+      0.05,
+      0.1,
+      0.25,
+      0.5,
+      0.75,
+      0.9,
+      0.95
+    ],
+    "lgbm_estimators": 150,
+    "scenarios": 30,
+    "cvar_alpha": 0.05,
+    "cvar_weight": 0.5,
+    "seed": 20261118,
+    "battery": {
+      "power_mw": 1.0,
+      "energy_mwh": 2.0,
+      "round_trip_efficiency": 0.85,
+      "initial_soc_fraction": 0.5,
+      "degradation_cost_per_mwh": 10.0
+    }
+  },
+  "processed_data_sha256": "bd4dd0b1fd02993f69466d9089d4acc6253bb39ba3c2e99e5c908d18158ef1cf",
+  "git_commit_at_run": "fab0fd8f27007b2fae36e7acfce80cfeee742892",
+  "python": "3.12.3",
+  "packages": {
+    "numpy": "2.5.5",
+    "pandas": "3.1.1",
+    "scipy": "1.18.1",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "duckdb": "2.0.0"
+  },
+  "numpy_seed_policy": 20261118
+}

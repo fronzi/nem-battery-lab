@@ -52,6 +52,9 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP", "NPY", "PD", "RUF"]
 ignore = ["PD011", "PD010"]  # strict DataFrame.pivot is wanted: duplicates must fail
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501", "RUF001"]
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true

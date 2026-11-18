@@ -6,6 +6,7 @@ import duckdb
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -73,7 +74,8 @@ def capture_figure(paths: Paths) -> None:
 
 def cumulative_figure(paths: Paths) -> None:
     daily = pd.read_parquet(paths.predictions / "daily_pnl.parquet")
-    fig, axes = plt.subplots(2, 3, figsize=(7.2, 4.2), sharex=True)
+    fig, axes = plt.subplots(2, 3, figsize=(7.2, 4.4), sharex=True)
+    names = {"perfect_foresight": "Perfect foresight (upper bound)", **LABELS}
     axes = axes.ravel()
     shown = ["perfect_foresight", "fixed_schedule", "naive_d1", "lgbm_quantile_mean", "lgbm_cvar"]
     palette = ["#111827", "#6b7280", "#b45309", "#db2777", "#dc2626"]
@@ -82,20 +84,26 @@ def cumulative_figure(paths: Paths) -> None:
         for strategy, colour in zip(shown, palette, strict=True):
             series = frame.loc[frame["strategy"].eq(strategy)].sort_values("day")
             ax.plot(
-                series["day"], series["pnl"].cumsum() / 1000, color=colour, lw=1, label=strategy
+                series["day"],
+                series["pnl"].cumsum() / 1000,
+                color=colour,
+                lw=1,
+                label=names[strategy],
             )
         ax.set_title(region, fontsize=9)
         ax.set_ylabel("Cumulative A$k per MW")
-        ax.tick_params(axis="x", labelrotation=30)
-    handles, names = axes[0].get_legend_handles_labels()
+        ax.xaxis.set_major_locator(mdates.YearLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.set_xlabel("Date")
+    handles, labels = axes[0].get_legend_handles_labels()
     axes[-1].axis("off")
-    axes[-1].legend(handles, names, frameon=False, fontsize=8, loc="center")
+    axes[-1].legend(handles, labels, frameon=False, fontsize=8, loc="center")
     _save(fig, paths, "fig2_cumulative_value")
 
 
 def coverage_figure(paths: Paths) -> None:
     coverage = pd.read_csv(paths.results / "interval_coverage.csv")
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 2.8), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.1), sharey=True, layout="constrained")
     for ax, nominal in zip(axes, (0.8, 0.9), strict=True):
         frame = coverage.loc[coverage["nominal"].round(2).eq(nominal)]
         for offset, method, colour in (
@@ -116,7 +124,8 @@ def coverage_figure(paths: Paths) -> None:
         ax.set_title(f"{nominal:.0%} prediction interval", fontsize=9)
     axes[0].set_ylabel("Empirical coverage (%)")
     axes[0].set_ylim(0, 100)
-    axes[1].legend(frameon=False, fontsize=7, loc="lower right")
+    handles, labels = axes[1].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=8, ncols=3, loc="outside lower center")
     _save(fig, paths, "fig3_interval_coverage")
 
 
@@ -149,8 +158,17 @@ def dispatch_figure(paths: Paths, config: ExperimentConfig) -> None:
     twin.set_ylabel("State of charge (MWh)")
     twin.grid(False)
     twin.spines["right"].set_visible(True)
-    axes[1].legend(frameon=False, fontsize=7, loc="upper left")
-    twin.legend(frameon=False, fontsize=7, loc="upper right")
+    lines = axes[1].get_legend_handles_labels()
+    twin_lines = twin.get_legend_handles_labels()
+    axes[1].legend(
+        lines[0] + twin_lines[0],
+        lines[1] + twin_lines[1],
+        frameon=False,
+        fontsize=7,
+        ncols=2,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.0),
+    )
     _save(fig, paths, "fig4_example_dispatch")
 
 
