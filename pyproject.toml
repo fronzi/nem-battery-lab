@@ -50,7 +50,7 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "NPY", "PD", "RUF"]
-ignore = ["PD901", "PD011"]
+ignore = ["PD011", "PD010"]  # strict DataFrame.pivot is wanted: duplicates must fail
 
 [tool.mypy]
 python_version = "3.12"

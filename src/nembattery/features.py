@@ -48,11 +48,8 @@ def build_region_features(
     if target_day is not None:
         days = pd.date_range(price.index.min(), target_day, freq="D", name="day")
         price, demand = price.reindex(days), demand.reindex(days)
-    other_long = (
-        panel.loc[panel["region"].ne(region)]
-        .groupby(["day", "period"], as_index=False)["price"]
-        .mean()
-    )
+    others = panel.loc[panel["region"].ne(region)]
+    other_long = pd.DataFrame(others.groupby(["day", "period"], as_index=False)["price"].mean())
     other = day_matrix(other_long, "price").reindex(price.index)
 
     p = price_transform(price.to_numpy())
@@ -90,8 +87,8 @@ def build_region_features(
                     "other_regions_price_d1": o[i - 1],
                     "period_sin": np.sin(2 * np.pi * period / PERIODS_PER_DAY),
                     "period_cos": np.cos(2 * np.pi * period / PERIODS_PER_DAY),
-                    "dow": day.dayofweek,
-                    "is_weekend": int(day.dayofweek >= 5),
+                    "dow": day.day_of_week,
+                    "is_weekend": int(day.day_of_week >= 5),
                     "month_sin": np.sin(2 * np.pi * day.month / 12),
                     "month_cos": np.cos(2 * np.pi * day.month / 12),
                 }
