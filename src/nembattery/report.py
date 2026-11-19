@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 from .battery import DispatchModel
 from .config import PERIODS_PER_DAY, REGIONS, ExperimentConfig, Paths
@@ -172,44 +173,104 @@ def dispatch_figure(paths: Paths, config: ExperimentConfig) -> None:
     _save(fig, paths, "fig4_example_dispatch")
 
 
+def _trend_figure(monthly: pd.DataFrame, column: str, axis_title: str, tick: str) -> go.Figure:
+    figure = px.line(
+        monthly,
+        x="month",
+        y=column,
+        color="region_code",
+        category_orders={"region_code": list(REGIONS)},
+        labels={column: axis_title, "month": "Month", "region_code": "Region"},
+    )
+    figure.update_layout(
+        template="plotly_white",
+        height=420,
+        margin={"l": 58, "r": 12, "t": 12, "b": 48},
+        legend={"orientation": "h", "x": 0, "y": 1.02, "yanchor": "bottom", "title_text": ""},
+        yaxis_tickformat=tick,
+    )
+    return figure
+
+
+def _value_figure(metrics: pd.DataFrame) -> go.Figure:
+    names = {"perfect_foresight": "Perfect foresight (upper bound)", **LABELS}
+    order = [*LABELS, "perfect_foresight"]
+    figure = go.Figure()
+    for index, region in enumerate(REGIONS):
+        frame = metrics.loc[metrics["region"].eq(region)].set_index("strategy").loc[order]
+        figure.add_bar(
+            x=frame["annualised_aud_per_mw"],
+            y=[names[item] for item in order],
+            orientation="h",
+            visible=index == 0,
+            marker_color=[
+                "#111827" if item == "perfect_foresight" else "#0f766e" for item in order
+            ],
+            text=[f"A${value / 1000:,.0f}k" for value in frame["annualised_aud_per_mw"]],
+            textposition="auto",
+            hovertemplate="%{y}<br>A$%{x:,.0f} per MW-year<extra></extra>",
+            name=region,
+        )
+    buttons = [
+        {
+            "label": region,
+            "method": "update",
+            "args": [{"visible": [item == region for item in REGIONS]}],
+        }
+        for region in REGIONS
+    ]
+    figure.update_layout(
+        template="plotly_white",
+        height=500,
+        margin={"l": 8, "r": 12, "t": 52, "b": 46},
+        showlegend=False,
+        xaxis_title="A$ per MW-year",
+        yaxis={"autorange": "reversed", "automargin": True},
+        updatemenus=[
+            {"type": "buttons", "direction": "right", "buttons": buttons, "x": 0, "y": 1.12,
+             "xanchor": "left", "yanchor": "bottom", "showactive": True, "pad": {"r": 4}}
+        ],
+    )  # fmt: skip
+    return figure
+
+
 def dashboard(paths: Paths) -> None:
     with duckdb.connect(str(paths.warehouse), read_only=True) as connection:
         monthly = connection.execute("SELECT * FROM mart_spread_trend ORDER BY month").df()
-    spread = px.line(
-        monthly,
-        x="month",
-        y="spread_12m_average",
-        color="region_code",
-        title="12-month average of daily top-2h minus bottom-2h price spread",
-        labels={"spread_12m_average": "A$/MWh", "month": "Month", "region_code": "Region"},
-    )
-    negative = px.line(
-        monthly,
-        x="month",
-        y="negative_price_share",
-        color="region_code",
-        title="Share of half-hours with negative prices",
-        labels={"negative_price_share": "Share", "month": "Month", "region_code": "Region"},
-    )
     metrics = pd.read_csv(paths.results / "strategy_metrics.csv")
-    value = px.bar(
-        metrics.loc[metrics["strategy"].ne("perfect_foresight")],
-        x="region",
-        y="annualised_aud_per_mw",
-        color="strategy",
-        barmode="group",
-        title="Backtest value by strategy (A$ per MW-year, before market and network costs)",
-        labels={"annualised_aud_per_mw": "A$ per MW-year", "region": "Region"},
-    )
-    parts = [
-        figure.to_html(full_html=False, include_plotlyjs="cdn" if i == 0 else False)
-        for i, figure in enumerate((value, spread, negative))
+    sections = [
+        (
+            "Backtest value by strategy",
+            "Annual value of a 1 MW / 2 MWh battery. Choose a region.",
+            _value_figure(metrics),
+        ),
+        (
+            "Daily price spread",
+            "12-month average of the top 2 hours minus the bottom 2 hours.",
+            _trend_figure(monthly, "spread_12m_average", "A$/MWh", ",.0f"),
+        ),
+        (
+            "Negative prices",
+            "Monthly share of half-hours with a price below zero.",
+            _trend_figure(monthly, "negative_price_share", "Share of half-hours", ".0%"),
+        ),
     ]
+    parts = []
+    for index, (title, note, figure) in enumerate(sections):
+        chart = figure.to_html(
+            full_html=False,
+            include_plotlyjs="cdn" if index == 0 else False,
+            config={"responsive": True, "displayModeBar": False},
+        )
+        parts.append(f"<section><h2>{title}</h2><p>{note}</p>{chart}</section>")
     html = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        "<title>NEM Battery Lab</title><style>body{font-family:system-ui;max-width:1100px;"
-        "margin:auto;padding:16px}</style></head><body><h1>NEM Battery Lab</h1>"
+        "<title>NEM Battery Lab</title><link rel='icon' href='data:,'><style>"
+        "body{font-family:system-ui,sans-serif;color:#111827;background:#fff;max-width:1000px;"
+        "margin:auto;padding:16px;line-height:1.45}h1{margin:.2em 0 .4em}"
+        "h2{margin:1.8em 0 .2em;font-size:1.25rem}section p{margin:.2em 0 .6em;color:#4b5563}"
+        "a{color:#0f766e}</style></head><body><h1>NEM Battery Lab</h1>"
         "<p>Battery value and market trends built from public AEMO data, January 2022 to "
         "October 2026. Backtest period: January 2024 to October 2026.</p>"
         "<p><strong>Research backtest only.</strong> Results exclude market impact, fees, "
