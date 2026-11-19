@@ -173,6 +173,28 @@ def dispatch_figure(paths: Paths, config: ExperimentConfig) -> None:
     _save(fig, paths, "fig4_example_dispatch")
 
 
+REGION_BUTTONS = (
+    "<div class='regions' role='group' aria-label='Choose a NEM region'>"
+    + "".join(
+        f"<button type='button' data-index='{i}' aria-pressed='{str(i == 0).lower()}'>{r}</button>"
+        for i, r in enumerate(REGIONS)
+    )
+    + "</div>"
+)
+REGION_SCRIPT = """<script>
+document.querySelectorAll('.regions button').forEach(function (button) {
+  button.addEventListener('click', function () {
+    var selected = Number(button.dataset.index);
+    var visible = [0, 1, 2, 3, 4].map(function (index) { return index === selected; });
+    Plotly.restyle('chart-0', 'visible', visible);
+    document.querySelectorAll('.regions button').forEach(function (item) {
+      item.setAttribute('aria-pressed', String(item === button));
+    });
+  });
+});
+</script>"""
+
+
 def _trend_figure(monthly: pd.DataFrame, column: str, axis_title: str, tick: str) -> go.Figure:
     figure = px.line(
         monthly,
@@ -211,26 +233,14 @@ def _value_figure(metrics: pd.DataFrame) -> go.Figure:
             hovertemplate="%{y}<br>A$%{x:,.0f} per MW-year<extra></extra>",
             name=region,
         )
-    buttons = [
-        {
-            "label": region,
-            "method": "update",
-            "args": [{"visible": [item == region for item in REGIONS]}],
-        }
-        for region in REGIONS
-    ]
     figure.update_layout(
         template="plotly_white",
         height=500,
-        margin={"l": 8, "r": 12, "t": 52, "b": 46},
+        margin={"l": 8, "r": 12, "t": 8, "b": 46},
         showlegend=False,
         xaxis_title="A$ per MW-year",
         yaxis={"autorange": "reversed", "automargin": True},
-        updatemenus=[
-            {"type": "buttons", "direction": "right", "buttons": buttons, "x": 0, "y": 1.12,
-             "xanchor": "left", "yanchor": "bottom", "showactive": True, "pad": {"r": 4}}
-        ],
-    )  # fmt: skip
+    )
     return figure
 
 
@@ -261,8 +271,10 @@ def dashboard(paths: Paths) -> None:
             full_html=False,
             include_plotlyjs="cdn" if index == 0 else False,
             config={"responsive": True, "displayModeBar": False},
+            div_id=f"chart-{index}",
         )
-        parts.append(f"<section><h2>{title}</h2><p>{note}</p>{chart}</section>")
+        controls = REGION_BUTTONS if index == 0 else ""
+        parts.append(f"<section><h2>{title}</h2><p>{note}</p>{controls}{chart}</section>")
     html = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -270,13 +282,17 @@ def dashboard(paths: Paths) -> None:
         "body{font-family:system-ui,sans-serif;color:#111827;background:#fff;max-width:1000px;"
         "margin:auto;padding:16px;line-height:1.45}h1{margin:.2em 0 .4em}"
         "h2{margin:1.8em 0 .2em;font-size:1.25rem}section p{margin:.2em 0 .6em;color:#4b5563}"
+        ".regions{display:flex;flex-wrap:wrap;gap:6px;margin:.6em 0}"
+        ".regions button{font:inherit;min-height:44px;padding:0 14px;border:1px solid #9ca3af;"
+        "border-radius:6px;background:#fff;color:#111827;cursor:pointer}"
+        ".regions button[aria-pressed=true]{background:#0f766e;border-color:#0f766e;color:#fff}"
         "a{color:#0f766e}</style></head><body><h1>NEM Battery Lab</h1>"
         "<p>Battery value and market trends built from public AEMO data, January 2022 to "
         "October 2026. Backtest period: January 2024 to October 2026.</p>"
         "<p><strong>Research backtest only.</strong> Results exclude market impact, fees, "
         "FCAS revenue and network charges, and are not investment advice.</p>"
         "<p><a href='https://github.com/fronzi/nem-battery-lab'>Code, methods and limits</a>"
-        "</p>" + "".join(parts) + "</body></html>"
+        "</p>" + "".join(parts) + REGION_SCRIPT + "</body></html>"
     )
     (paths.results / "dashboard.html").write_text(html, encoding="utf-8")
 
