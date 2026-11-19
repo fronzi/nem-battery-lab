@@ -210,8 +210,12 @@ def dashboard(paths: Paths) -> None:
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>NEM Battery Lab</title><style>body{font-family:system-ui;max-width:1100px;"
         "margin:auto;padding:16px}</style></head><body><h1>NEM Battery Lab</h1>"
-        "<p>Built from public AEMO data. Backtest results exclude market impact, fees, "
-        "FCAS revenue and network charges.</p>" + "".join(parts) + "</body></html>"
+        "<p>Battery value and market trends built from public AEMO data, January 2022 to "
+        "October 2026. Backtest period: January 2024 to October 2026.</p>"
+        "<p><strong>Research backtest only.</strong> Results exclude market impact, fees, "
+        "FCAS revenue and network charges, and are not investment advice.</p>"
+        "<p><a href='https://github.com/fronzi/nem-battery-lab'>Code, methods and limits</a>"
+        "</p>" + "".join(parts) + "</body></html>"
     )
     (paths.results / "dashboard.html").write_text(html, encoding="utf-8")
 

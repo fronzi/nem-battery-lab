@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/fronzi/nem-battery-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/fronzi/nem-battery-lab/actions/workflows/ci.yml)
 
+**[Open the interactive dashboard](https://fronzi.github.io/nem-battery-lab/)**
+
 **Does better price forecasting make a grid battery more valuable?** This project answers that
 question end to end on public Australian electricity-market data: ingestion, a SQL star schema,
 probabilistic forecasting, mixed-integer optimisation, risk analysis, an API and monitoring.
@@ -75,7 +77,7 @@ A$4.6 to A$8.9/MWh). Dispatch value depends mostly on getting the
 
 | Target role | Essential skills shown here | Highly desirable extensions shown here |
 |---|---|---|
-| **Senior Data Scientist** | Python, advanced SQL (window functions, marts), feature engineering, walk-forward evaluation, baselines, statistical testing | Star schema, BI-ready Parquet, interactive [dashboard](results/dashboard.html), decision-focused metrics |
+| **Senior Data Scientist** | Python, advanced SQL (window functions, marts), feature engineering, walk-forward evaluation, baselines, statistical testing | Star schema, BI-ready Parquet, interactive [dashboard](https://fronzi.github.io/nem-battery-lab/), decision-focused metrics |
 | **Machine Learning Engineer** | Packaged code, typed modules, tests, CLI, FastAPI serving, model artefacts | Docker, GitHub Actions, data-quality gates, PSI drift and coverage monitoring, run manifests |
 | **Energy Modelling / Optimisation Scientist** | Market data, battery physics, MILP dispatch, efficiency and wear | Scenario optimisation, CVaR, perfect-foresight benchmark, five-region comparison |
 | **Quantitative Analyst / Researcher** | No-look-ahead backtesting, P&L attribution, drawdown, VaR/CVaR | Block bootstrap, Holm correction, Diebold-Mariano tests, conformal intervals |
